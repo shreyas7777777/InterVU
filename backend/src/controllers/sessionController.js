@@ -3,43 +3,57 @@ import Session from "../models/Session.js";
 
 export async function createSession(req, res) {
   try {
+    console.log("STEP 1 — controller hit");
+    console.log("🔥🔥 CREATE SESSION CONTROLLER STARTED 🔥🔥");
+
+
     const { problem, difficulty } = req.body;
-    const userId = req.user._id;
-    const clerkId = req.user.clerkId;
+    const userId = req.user?._id;
+    const clerkId = req.user?.clerkId;
 
-    if (!problem || !difficulty) {
-      return res.status(400).json({ message: "Problem and difficulty are required" });
-    }
+   
 
-    // generate a unique call id for stream video
+
+    console.log("STEP 2 — user:", userId, clerkId);
+
     const callId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-    // create session in db
-    const session = await Session.create({ problem, difficulty, host: userId, callId });
+    const session = await Session.create({
+      problem,
+      difficulty,
+      host: userId,
+      callId,
+    });
 
-    // create stream video call
-    await streamClient.video.call("default", callId).getOrCreate({
+    console.log("STEP 3 — DB session created");
+
+    const call = streamClient.video.call("default", callId);
+
+    await call.getOrCreate({
       data: {
         created_by_id: clerkId,
-        custom: { problem, difficulty, sessionId: session._id.toString() },
       },
     });
 
-    // chat messaging
+    console.log("STEP 4 — Stream room created");
+
     const channel = chatClient.channel("messaging", callId, {
-      name: `${problem} Session`,
       created_by_id: clerkId,
       members: [clerkId],
     });
 
     await channel.create();
 
+    console.log("STEP 5 — Chat room created");
+
     res.status(201).json({ session });
+
   } catch (error) {
-    console.log("Error in createSession controller:", error.message);
+    console.error("FULL ERROR:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
 
 export async function getActiveSessions(_, res) {
   try {
